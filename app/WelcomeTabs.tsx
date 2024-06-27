@@ -1,8 +1,7 @@
 import 'react-native-gesture-handler';
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Styling from './Styling';
 import Planner from './Planner';
@@ -16,30 +15,67 @@ const WelcomeTabs=()=> {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size }) => {
+  
+        tabBarIcon: ({ color, size, focused }) => {
           let iconName: string;
+          let activeColor: string;
 
           switch (route.name) {
             case 'Timeline':
               iconName = 'home';
+              activeColor = focused ? '#36BA98' : 'gray';
               break;
             case 'Explore':
               iconName = 'compass'; // changed to 'compass' as 'world' is not available in MaterialCommunityIcons
+              activeColor = focused ? '#EF9C66' : 'gray'; // Tomato color
               break;
             case 'Planner':
               iconName = 'calendar';
+              activeColor = focused ? '#FF4191' : 'gray'; // Gold color
               break;
             case 'Styling':
-              iconName = 'compass';
+              iconName = 'brush';
+              activeColor = focused ? '#FFD0D0' : 'gray'; // LimeGreen color
               break;
             case 'Wardrobe':
               iconName = 'wardrobe';
+              activeColor = focused ? '#91DDCF' : 'gray'; // DodgerBlue color
               break;
             default:
               iconName = 'home'; // Default to home
+              activeColor = focused ? '#6C63FF' : 'gray'; // Default active color
           }
 
-          return <Icon name={iconName} color={color} size={size} />;
+          return <Icon name={iconName} color={activeColor} size={size} />;
+        },
+        tabBarLabel: ({ focused }) => {
+          let labelColor: string;
+
+          switch (route.name) {
+            case 'Timeline':
+              labelColor = focused ? '#36BA98' : 'gray';
+              break;
+            case 'Explore':
+              labelColor = focused ? '#EF9C66' : 'gray'; // Tomato color
+              break;
+            case 'Planner':
+              labelColor = focused ? '#FF4191' : 'gray'; // Gold color
+              break;
+            case 'Styling':
+              labelColor = focused ? '#FFD0D0' : 'gray'; // LimeGreen color
+              break;
+            case 'Wardrobe':
+              labelColor = focused ? '#91DDCF' : 'gray'; // DodgerBlue color
+              break;
+            default:
+              labelColor = focused ? '#6C63FF' : 'gray'; // Default active color
+          }
+
+          return (
+            <Text style={{ color: labelColor, fontSize: 10 }}>
+              {route.name}
+            </Text>
+          );
         },
         tabBarActiveTintColor: '#6C63FF',
         tabBarInactiveTintColor: 'gray',
