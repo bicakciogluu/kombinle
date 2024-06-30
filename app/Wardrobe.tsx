@@ -75,11 +75,11 @@ const Wardrobe = () => {
                 </ScrollView>);
             case 'Outfits':
                 return (
-                    <Text>Yarrak</Text>
+                    <Text>Outfits</Text>
                 )
             case 'Saved':
                 return (
-                    <Text>Sikerim</Text>
+                    <Text>Saved</Text>
                 )
             default:
                 return null;
