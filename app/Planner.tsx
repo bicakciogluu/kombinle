@@ -1,135 +1,201 @@
-import React, { useRef, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Dimensions, TouchableOpacity } from 'react-native';
-
-const { width: screenWidth } = Dimensions.get('window');
-const itemWidth = screenWidth * 0.5;
-const separatorWidth = (screenWidth - itemWidth) / 2;
-
-const slots = ['', 'Slot 1', 'Slot 2', 'Slot 3', 'Slot 4', 'Slot 5', ''];
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity,  Alert } from 'react-native';
+import { format } from 'date-fns';
+import { useFonts } from 'expo-font';
+import AppLoading from 'expo-app-loading';
+import { Ionicons } from '@expo/vector-icons';
+import { CalendarProvider, WeekCalendar } from 'react-native-calendars';
 
 const Planner = () => {
-  const [selectedIndex, setSelectedIndex] = useState<number>(1); // Start with the first slot selected
-  const flatListRef = useRef<FlatList<any>>(null);
+  const today = new Date().toISOString().split('T')[0];
 
-  const handleScroll = (event: any) => {
-    const offsetX = event.nativeEvent.contentOffset.x;
-    const index = Math.round(offsetX / (itemWidth+separatorWidth)); // Change this line to use screen width
-    setSelectedIndex(index);
+  const onDayPress = (day: any) => {
+    Alert.alert('Selected Day', `You selected ${day.dateString}`);
   };
 
-  const handleSnapToItem = (index: number) => {
-    flatListRef.current?.scrollToIndex({ animated: true, index });
-  };
+  let [fontsLoaded] = useFonts({
+    'SpaceMonoRegular': require('@/assets/fonts/SpaceMono-Regular.ttf'),
+    'SpaceMonoBold': require('@/assets/fonts/SpaceMono-Bold.ttf'),
+  });
 
-  const scrollRight = () => {
-    if (selectedIndex < slots.length - 1) {
-      handleSnapToItem(selectedIndex + 1);
-    }
-  };
+  if (!fontsLoaded) {
+    return <AppLoading />;
+  }
 
-  const scrollLeft = () => {
-    if (selectedIndex > 0) {
-      handleSnapToItem(selectedIndex - 1);
-    }
-  };
+  const dayOfWeek = format(today, 'EEEE');
+  const getToday = () => format(today, 'd MMMM yyyy');
+
+  const [isNotificationOn, setIsNotificationOn] = useState(false);
+  const toggleSwitch = () => setIsNotificationOn((previousState) => !previousState);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <FlatList
-        data={slots}
-        keyExtractor={(item, index) => index.toString()}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollViewContainer}
-        snapToAlignment="start"
-        snapToInterval={separatorWidth+itemWidth} // Change this line to use screen width
-        decelerationRate="fast"
-        renderItem={({ item, index }) => (
-          <View style={styles.slotContainer}>
-            <View style={[styles.slot, selectedIndex === index && styles.selectedSlot]}>
-              <Text style={styles.slotText}>{item}</Text>
-            </View>
-          </View>
-        )}
-        ItemSeparatorComponent={() => <View style={{ width: separatorWidth }} />}
-        onScroll={handleScroll}
-        onMomentumScrollEnd={() => handleSnapToItem(selectedIndex)}
-        ref={flatListRef}
-        initialScrollIndex={1}
-        getItemLayout={(data, index) => (
-          { length: screenWidth, offset: (separatorWidth+itemWidth) * index, index } // Change this line to use screen width
-        )}
-      />
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity onPress={scrollLeft} style={styles.button}>
-          <Text style={styles.buttonText}>Left</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={scrollRight} style={styles.button}>
-          <Text style={styles.buttonText}>Right</Text>
-        </TouchableOpacity>
+      <View style={styles.header}>
+        <View style={styles.dateContainer}>
+          <Text style={styles.dayText}>{dayOfWeek}</Text>
+          <Text style={styles.dateText}>{getToday()}</Text>
+        </View>
+        <View style={styles.iconContainer}>
+          <TouchableOpacity onPress={toggleSwitch} style={styles.switch}>
+            {isNotificationOn ? (
+              <Ionicons name="notifications-off-sharp" size={20} color="black" />
+            ) : (
+              <Ionicons name="notifications-sharp" size={20} color="black" />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Ionicons name="calendar-outline" size={24} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Ionicons name="settings-outline" size={24} color="black" />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      <CalendarProvider date={today}>
+        <WeekCalendar
+          
+          onDayPress={onDayPress}
+          markedDates={{
+            [today]: { selected: true, marked: true, selectedColor: 'blue' },
+          }}
+          theme={{
+            selectedDayBackgroundColor: 'green',
+            todayTextColor: 'red',
+            dayTextColor: 'black',
+          }}
+          style={{ borderTopColor: 'white' }}
+        />
+        <View style={styles.content}>
+        <Text style={styles.question}>What are you Whering today?</Text>
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity style={[styles.button, styles.addButton]}>
+            <Text style={styles.buttonText}>Add from wardrobe</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.button, styles.createButton]}>
+            <Text style={styles.buttonText}>Create new outfit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.button, styles.discoverButton]}>
+            <Text style={styles.buttonText}>Discover new outfits</Text>
+            <Text style={styles.betaLabel}>BETA</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.button, styles.uploadButton]}>
+            <Text style={styles.buttonText}>Upload OOTD photo</Text>
+            <Text style={styles.newLabel}>NEW</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      </CalendarProvider>
+
+      
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  switch: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ddd',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  switchIcon: {
+    width: 24,
+    height: 24,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#333',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#f5f5f5',
   },
-  title: {
-    color: '#fff',
-    fontSize: 24,
-    position: 'absolute',
-    top: 40,
-    left: 20,
-  },
-  scrollViewContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: separatorWidth,
-  },
-  slotContainer: {
-    width: itemWidth,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  slot: {
-    width: '100%',
-    height: 300,
-    backgroundColor: '#e0e0e0',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    borderColor: 'transparent',
-    borderWidth: 2,
-  },
-  selectedSlot: {
-    borderColor: '#fff',
-  },
-  slotText: {
-    fontSize: 18,
-    color: '#000',
-  },
-  buttonContainer: {
+  header: {
+    backgroundColor:'white',
     flexDirection: 'row',
-    position: 'absolute',
-    bottom: 40,
     justifyContent: 'space-between',
-    width: '100%',
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  dateContainer: {
+    flex: 1,
     paddingHorizontal: 20,
   },
+  dayText: {
+    fontSize: 24,
+    fontFamily: 'SpaceMonoBold',
+  },
+  dateText: {
+    fontSize: 18,
+    fontFamily: 'SpaceMonoRegular',
+    color: '#888',
+  },
+  iconContainer: {
+    flexDirection: 'row',
+    marginHorizontal:20,
+    
+  },
+  icon: {
+    width: 24,
+    height: 24,
+    marginLeft: 10,
+  },
+  content: {
+    alignItems: 'center',
+  },
+  question: {
+    fontSize: 18,
+    marginBottom: 20,
+  },
+  buttonsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
   button: {
-    backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 5,
+    width: '40%',
+    margin: 10,
+    padding: 20,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  addButton: {
+    backgroundColor: '#00BFFF',
+  },
+  createButton: {
+    backgroundColor: '#DA70D6',
+  },
+  discoverButton: {
+    backgroundColor: '#FF4500',
+    position: 'relative',
+  },
+  uploadButton: {
+    backgroundColor: '#ADFF2F',
+    position: 'relative',
   },
   buttonText: {
-    color: '#000',
-    fontSize: 18,
+    color: '#fff',
+    fontSize: 16,
+  },
+  betaLabel: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: '#000',
+    color: '#fff',
+    padding: 3,
+    borderRadius: 3,
+    fontSize: 10,
+  },
+  newLabel: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: '#000',
+    color: '#fff',
+    padding: 3,
+    borderRadius: 3,
+    fontSize: 10,
   },
 });
 
