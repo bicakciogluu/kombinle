@@ -1,23 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '@/assets/types/navigation';
 import { useFonts } from 'expo-font';
 import AppLoading from 'expo-app-loading';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { auth, db } from '@/firebaseConfig';
+import { createUserWithEmailAndPassword, sendEmailVerification, signOut } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import axios, { AxiosError } from 'axios';
+import UserModel from '@/app/Models/User';
+import AppLoader from '@/app/AppLoader';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
+
 type VerifyEmailScreenRouteProp = RouteProp<RootStackParamList, 'VerifyEmail'>;
 
 type Props = {
   route: VerifyEmailScreenRouteProp;
 };
+interface User {
+  username: string;
+  email: string;
+  password: string;
+}
 
 const EmailVerification: React.FC<Props> = ({ route }) => {
-  const { fullName, email, password } = route.params;
+  const { fullName, email, password, name, surname } = route.params;
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [counter, setCounter] = useState<number>(180);
-  const [code, setCode] = useState<string[]>(Array(6).fill(''));
   const [isResending, setIsResending] = useState<boolean>(false);
-  const [generatedCode, setGeneratedCode] = useState<string>('');
+  const [isDataSaved, setIsDataSaved] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const userServer: User = new UserModel(fullName, email, password, name, surname);
+  const [isSent, setIsSent] = useState<boolean>(false);
+  const [id, setid] = useState<number>(-1);
 
   let [fontsLoaded] = useFonts({
     'Montserrat': require('@/assets/fonts/Montserrat-Light.ttf'),
@@ -29,8 +46,117 @@ const EmailVerification: React.FC<Props> = ({ route }) => {
   }
 
   useEffect(() => {
-    generateAndSendCode();
+    if (!isSent) {
+      sendVerificationEmail();
+      setIsSent(true);
+    }
   }, []);
+
+  const checkEmailVerification = async () => {
+    const user = auth.currentUser;
+    if (user && !isDataSaved) {
+      await user.reload();
+      if (user.emailVerified) {
+        setIsLoading(true)
+        try {
+
+          await saveUserEmail(user.uid, email);
+          await saveUserServer(userServer);
+
+          setIsDataSaved(true);
+
+          Alert.alert('Success', 'User Data Saved.');
+        } catch (error) {
+          console.error('Error saving data:', error);
+          Alert.alert('Error', 'Failed to save user data.');
+        }
+      }
+    }
+  };
+  const uploadProfilePic = async (userId: number) => {
+    const localAsset = require('@/assets/images/logo.png');
+
+    const uri = FileSystem.documentDirectory + 'logo.png';
+    await FileSystem.copyAsync({
+      from: localAsset,
+      to: uri,
+    });
+
+    const formData = new FormData();
+    const fileName = 'logo.png';
+    const fileType = 'image/png';
+
+    formData.append('file', {
+      uri: uri,
+      name: fileName,
+      type: fileType,
+    } as any);
+
+    try {
+      const response = await axios.post(`http://3.76.10.93:5005/upload_profile_pic/${userId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.status === 200) {
+        console.log('Profile picture uploaded successfully:', response.data.message);
+        navigation.navigate('SurveyScreen');
+
+      }
+    } catch (error: any) {
+      if (error.response) {
+        console.error('Error uploading profile picture:', error.response.data.error);
+      } else {
+        console.error('Error:', error.message);
+      }
+    }
+  };
+  const loginUser = async (email: string, password: string) => {
+    try {
+      const response = await axios.post('http://3.76.10.93:5005/login', {
+        email: email,
+        password: password,
+      });
+
+      if (response.status === 200 && response.data.message === "login succeeded") {
+        const { user_id } = response.data;
+
+        console.log('User logged in successfully:', user_id);
+        setid(user_id)
+        await AsyncStorage.setItem('user_id', user_id.toString());
+      } else {
+        Alert.alert('Error', 'Failed to log in. Please try again.');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      Alert.alert('Error', 'An error occurred during login. Please try again.');
+    }
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkEmailVerification();
+    }, 2000);
+
+    if (isDataSaved) {
+      clearInterval(interval);
+    }
+
+    return () => clearInterval(interval);
+  }, [isDataSaved]);
+
+  useEffect(() => {
+    setIsLoading(true)
+    setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    if (isDataSaved) {
+      loginUser(email, password);
+      uploadProfilePic(id)
+
+    }
+  }, [isDataSaved]);
 
   useEffect(() => {
     if (counter > 0) {
@@ -43,88 +169,94 @@ const EmailVerification: React.FC<Props> = ({ route }) => {
     }
   }, [counter, isResending]);
 
-  const generateAndSendCode = () => {
-    const newCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedCode(newCode);
-    sendVerificationEmail(email, newCode);
+  const sendVerificationEmail = async () => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      await sendEmailVerification(user);
+      Alert.alert('Success', 'Verification email sent. Please check your email.');
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        Alert.alert('Error', 'This email is already in use. Please use a different email.');
+      } else {
+        console.error('Error:', error);
+        Alert.alert('Error', 'Failed to send verification email');
+      }
+      setIsLoading(false);
+    }
   };
 
-  const sendVerificationEmail = async (email: string, code: string) => {
+  const saveUserEmail = async (uid: string, email: string) => {
     try {
-      const response = await fetch('http://localhost:8081/api/sendVerificationEmail', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, code }),
+      await setDoc(doc(db, "users", uid), {
+        email,
+        createdAt: new Date(),
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        Alert.alert('Success', data.message);
-      } else {
-        Alert.alert('Error', data.message);
-      }
     } catch (error) {
-      console.error('Error:', error);
-      Alert.alert('Error', 'Failed to send verification email');
+      console.error('Error saving user email:', error);
+      Alert.alert('Error', 'Failed to save user email.');
+    }
+  };
+
+  const saveUserServer = async (userData: User) => {
+    try {
+      const response = await axios.post('http://3.76.10.93:5005/sign-up', userData);
+      console.log('User successfully created:', response.data);
+    } catch (error: unknown) {
+      if (error instanceof AxiosError) {
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+        } else if (error.request) {
+          console.error('Error request:', error.request);
+        } else {
+          console.error('Error:', error.message);
+        }
+      } else if (error instanceof Error) {
+        console.error('Unexpected error:', error.message);
+      } else {
+        console.error('Unknown error occurred');
+      }
     }
   };
 
   const handleResend = () => {
     setCounter(180);
     setIsResending(true);
-    generateAndSendCode();
+    sendVerificationEmail();
   };
 
-  const handleCodeChange = (index: number, value: string) => {
-    const newCode = [...code];
-    newCode[index] = value;
-    setCode(newCode);
-  };
-
-  const handleVerify = () => {
-    if (code.join('') === generatedCode) {
-      Alert.alert('Success', 'Your email has been verified.');
-      navigation.navigate('VerifyEmail', { fullName, email, password });
-    } else {
-      Alert.alert('Error', 'The entered code is incorrect. Please try again.');
-    }
+  const handleButton = () => {
+    signOut(auth).then(() => {
+      navigation.navigate('CreateAccount');
+    });
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Almost there</Text>
-      <Text style={styles.subHeader}>
-        Please enter the 6-digit code sent to your email <Text style={styles.email}>{email}</Text> for verification.
-      </Text>
+    <>
+      <View style={styles.container}>
+        <Text style={styles.header}>Almost there</Text>
+        <Text style={styles.subHeader}>
+          Please Verify Your Email <Text style={styles.email}>{email}</Text> for verification.
+        </Text>
+        <Image
+          source={require('@/assets/images/emailVerify.jpg')}
+          style={styles.image}
+          resizeMode="contain"
+        />
+        <TouchableOpacity style={styles.verifyButton} onPress={handleButton}>
+          <Text style={styles.verifyButtonText}>Go Back</Text>
+        </TouchableOpacity>
 
-      <View style={styles.codeContainer}>
-        {code.map((digit, index) => (
-          <TextInput
-            key={index}
-            style={styles.codeInput}
-            keyboardType="numeric"
-            maxLength={1}
-            value={digit}
-            onChangeText={(value) => handleCodeChange(index, value)}
-          />
-        ))}
+        <Text style={styles.resendText}>
+          Didn’t receive any code? <Text style={styles.resendLink} onPress={handleResend}>Resend Again</Text>
+        </Text>
+
+        <Text style={styles.timerText}>
+          Request new code in {Math.floor(counter / 60).toString().padStart(2, '0')}:{(counter % 60).toString().padStart(2, '0')}s
+        </Text>
       </View>
-
-      <TouchableOpacity style={styles.verifyButton} onPress={handleVerify}>
-        <Text style={styles.verifyButtonText} onPress={handleVerify}>VERIFY</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.resendText}>
-        Didn’t receive any code? <Text style={styles.resendLink} onPress={handleResend}>Resend Again</Text>
-      </Text>
-
-      <Text style={styles.timerText}>
-        Request new code in {Math.floor(counter / 60).toString().padStart(2, '0')}:{(counter % 60).toString().padStart(2, '0')}s
-      </Text>
-    </View>
+      {isLoading && <AppLoader />}
+    </>
   );
 };
 
@@ -149,22 +281,11 @@ const styles = StyleSheet.create({
   email: {
     fontWeight: 'bold',
   },
-  codeContainer: {
-    flexDirection: 'row',
-    color: '#C4C4C4',
-    justifyContent: 'space-between',
-    marginVertical: 20,
+  image: {
+    width: 400,
+    height: 400,
   },
-  codeInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    width: 40,
-    height: 40,
-    textAlign: 'center',
-    fontSize: 18,
-    marginHorizontal: 5,
-  },
+
   verifyButton: {
     backgroundColor: '#4630EB',
     borderRadius: 8,

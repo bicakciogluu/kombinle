@@ -16,12 +16,11 @@ const images = [
   require('@/assets/images/7.jpg'),
   require('@/assets/images/8.jpg'),
   require('@/assets/images/9.jpg'),
-  require('@/assets/images/logo.png')
+  require('@/assets/images/blogo.png')
 ];
 
 const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.imageGridContainer}>
@@ -77,14 +76,14 @@ const HomeScreen = () => {
         </View>
       </View>
       <View style={styles.logoContainer}>
-        <Image source={require('@/assets/images/logo.png')} style={styles.logo} />
+        <Image source={require('@/assets/images/blogo.png')} style={styles.logo} />
       </View>
       <Text style={styles.title}>We welcome you to kombinle</Text>
       <Text style={styles.information}>Discover endless outfit possibilities with Kombinle, tailored to your style and wardrobe.</Text>
       <TouchableOpacity style={styles.registerButton} onPress={() => navigation.navigate('CreateAccount')}>
         <Text style={styles.registerButtonText}>Register</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.loginButton}onPress={() => navigation.navigate('Login')}>
+      <TouchableOpacity style={styles.loginButton} onPress={() => navigation.navigate('Login')}>
         <Text style={styles.loginButtonText}>Log in</Text>
       </TouchableOpacity>
       <Text style={styles.termsText}>
