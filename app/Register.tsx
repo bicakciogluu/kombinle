@@ -6,11 +6,16 @@ import AppLoading from 'expo-app-loading';
 import Checkbox from 'expo-checkbox';
 import { RootStackParamList } from '@/assets/types/navigation';
 import { NavigationProp, useNavigation } from '@react-navigation/native';
+import { getDocs, collection, query, where } from "firebase/firestore";
+import { db } from '@/firebaseConfig';
 
 const RegisterScreen = () => {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [isSelected, setSelection] = useState(false);
   const [fullName, setFullName] = useState('');
+  const [name, setName] = useState('');
+  const [surname, setSurName] = useState('');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordAgain, setPasswordAgain] = useState('');
@@ -53,7 +58,7 @@ const RegisterScreen = () => {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!fullName || !email || !password || !passwordAgain || !isSelected) {
       Alert.alert("Error", "Please fill in all fields and agree to the terms and conditions.");
       return;
@@ -66,7 +71,21 @@ const RegisterScreen = () => {
       Alert.alert("Error", "Please fix the errors before proceeding.");
       return;
     }
-    navigation.navigate('VerifyEmail', { fullName, email, password });
+    try {
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("email", "==", email));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        Alert.alert("Error", "This email is already registered. Please use a different email.");
+        return;
+      }
+
+      navigation.navigate('VerifyEmail', { fullName, email, password, name, surname });
+    } catch (error) {
+      console.error("Error checking email in Firestore:", error);
+    }
+
   };
 
   return (
@@ -77,9 +96,27 @@ const RegisterScreen = () => {
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.input}
-          placeholder="Full name"
+          placeholder="Username"
           value={fullName}
           onChangeText={setFullName}
+        />
+        <Icon name="account" size={24} color="#6e6e6e" />
+      </View>
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Name"
+          value={name}
+          onChangeText={setName}
+        />
+        <Icon name="account" size={24} color="#6e6e6e" />
+      </View>
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          placeholder="Surname"
+          value={surname}
+          onChangeText={setSurName}
         />
         <Icon name="account" size={24} color="#6e6e6e" />
       </View>
@@ -91,8 +128,8 @@ const RegisterScreen = () => {
           keyboardType="email-address"
           value={email}
           onChangeText={(text) => {
-            setEmail(text);
-            validateEmail(text);
+            setEmail(text.toLocaleLowerCase());
+            validateEmail(text.toLocaleLowerCase());
           }}
         />
         <TouchableOpacity
@@ -172,7 +209,7 @@ const RegisterScreen = () => {
         </Text>
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleNext}>
+      <TouchableOpacity style={styles.button} onPress={() => handleNext()}>
         <Text style={styles.buttonText}>Next</Text>
       </TouchableOpacity>
 
@@ -192,6 +229,7 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   container: {
+    paddingTop: 50,
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 20,
@@ -261,7 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   button: {
-    marginTop: 70,
+    marginTop: 30,
     backgroundColor: '#6C63FF',
     paddingVertical: 15,
     borderRadius: 8,
@@ -281,7 +319,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 0,
   }
 });
 

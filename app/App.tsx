@@ -7,16 +7,18 @@ import RegisterScreen from './Register';
 import LoginScreen from './Login';
 import EmailVerification from './EmailVerification'
 import WelcomeTabs from './WelcomeTabs'
-import TimeLine from './TimeLine'
 import { RootStackParamList } from '@/assets/types/navigation';
+import ClotheAdd from '@/app/ClotheAdd'
+import ProfileScreen from '@/app/ProfileScreen';
+import SurveyScreen from './Survey';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen name="Home" component={HomeScreen}
+      <Stack.Navigator initialRouteName="Home" >
+        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }}
         />
         <Stack.Screen
           name="VerifyEmail"
@@ -37,7 +39,24 @@ export default function App() {
           component={WelcomeTabs}
           options={{ headerShown: false }}
         />
-       
+        <Stack.Screen
+          name="ClotheAdd"
+          component={ClotheAdd}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ProfileScreen"
+          component={ProfileScreen}
+          initialParams={{
+            userId: -1
+          }}
+        />
+        <Stack.Screen
+          name="SurveyScreen"
+          component={SurveyScreen}
+          options={{ headerShown: false }}
+
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

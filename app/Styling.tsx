@@ -1,68 +1,92 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Image, FlatList, TouchableOpacity, Dimensions } from 'react-native';
-import { AntDesign, Feather } from '@expo/vector-icons';
-import LayoutTwoColumnsIcon from '@/components/LayoutTwoColumnsIcon';
+import { AntDesign } from '@expo/vector-icons';
 import LayoutThreeColumnsIcon from '@/components/LayoutThreeColumnsIcon';
 import LayoutFourColumnsIcon from '@/components/LayoutFourColumnsIcon';
-import { ScrollView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import AppLoading from 'expo-app-loading';
+import ImageCanvas from './ImageCanvas';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import User from './Models/User';
+import { ClotheModel } from './Models/Clothe';
+import { useNavigation } from '@react-navigation/native';
 
 
 const { width: screenWidth } = Dimensions.get('window');
 const itemWidth = screenWidth * 0.5;
 const separatorWidth = screenWidth * 0.25;
 
-type Item = {
-    id: number;
-    src: any;
-    type: string;
+
+const validTypesMapping: { [key: string]: string[] } = {
+    'top': ['T-shirt', 'Shirt', 'Sweatshirt'],
+    'lower': ['Pant', 'Short'],
+    'shoe': ['Shoe'],
+    'outer': ['Jacket'],
 };
 
-type RowItems = Item[];
 
-const upperBody: Item[] = [
-    { id: 1, src: require('@/assets/images/kazak.png'), type: "upperBody" },
-    { id: 2, src: require('@/assets/images/triko.png'), type: "upperBody" },
-];
-
-const lowerBody: Item[] = [
-    { id: 3, src: require('@/assets/images/pantolon.png'), type: "lowerBody" },
-];
-
-const fullBody: Item[] = [
-    { id: 4, src: require('@/assets/images/elbise.png'), type: "fullBody" },
-];
-
-const outerwear: Item[] = [
-    { id: 5, src: require('@/assets/images/mont.png'), type: "outerwear" },
-];
-
-const shoes: Item[] = [
-    { id: 6, src: require('@/assets/images/ayakkabi.png'), type: "shoes" },
-
-];
-
-const getRows = (numRows: number): RowItems[] => {
-    switch (numRows) {
-        case 2:
-            return [fullBody, shoes];
-        case 3:
-            return [upperBody, lowerBody, shoes];
-        case 4:
-            return [outerwear, upperBody, lowerBody, shoes];
-        default:
-            return [];
-    }
-};
 
 
 const Styling = () => {
+    const navigation = useNavigation();
+
     const [selectedIndex, setSelectedIndex] = useState<number>(1);
     const flatListRefs = useRef<(FlatList<any> | null)[]>([]);
-    const [numRows, setNumRows] = useState<number>(2);
+    const [numRows, setNumRows] = useState<number>(3);
     const [selectedInfo, setSelectedInfo] = useState<string>('Dress Me');
-    const [rowItems, setRowItems] = useState<RowItems[]>(getRows(numRows));
+    const [isScrollable, setIsScrollable] = useState<boolean[]>(Array(numRows).fill(true));
+    const [selectedUpper, setSelectedUpper] = useState<{ id: number, image_uri: string } | null>(null);
+    const [selectedLower, setSelectedLower] = useState<{ id: number, image_uri: string } | null>(null);
+    const [selectedShoes, setSelectedShoes] = useState<{ id: number, image_uri: string } | null>(null);
+    const [selectedOuter, setSelectedOuter] = useState<{ id: number, image_uri: string } | null>(null);
+
+    const handlePin = (rowIndex: number) => {
+        const newScrollableState = [...isScrollable];
+        newScrollableState[rowIndex] = !newScrollableState[rowIndex];
+        setIsScrollable(newScrollableState);
+    };
+    const [user, setUser] = useState<User | null>(null);
+    const [images, setImages] = useState<ClotheModel[]>([]);
+
+    const upperBody = 'top'
+        ? images.filter(image => validTypesMapping['top']?.includes(image.type))
+        : images;
+    const lowerBody = 'lower'
+        ? images.filter(image => validTypesMapping['lower']?.includes(image.type))
+        : images;
+    const shoes = 'shoe'
+        ? images.filter(image => validTypesMapping['shoe']?.includes(image.type))
+        : images;
+    const outerwear = 'outer'
+        ? images.filter(image => validTypesMapping['outer']?.includes(image.type))
+        : images;
+
+    const getRows = (numRows: number): ClotheModel[][] => {
+        switch (numRows) {
+            case 3:
+                return [upperBody, lowerBody, shoes];
+            case 4:
+                return [outerwear, upperBody, lowerBody, shoes];
+            default:
+                return [];
+        }
+    };
+    const fetchUser = async () => {
+        try {
+            const userData = await AsyncStorage.getItem('user');
+            if (userData !== null) {
+                const parsedUser = JSON.parse(userData);
+                setUser(parsedUser);
+                setImages(parsedUser?.clothes ?? []);
+            }
+        } catch (error) {
+            console.error('Failed to load user data:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchUser();
+    }, []);
     let [fontsLoaded] = useFonts({
         'Montserrat': require('@/assets/fonts/Montserrat-Light.ttf'),
         'MontserratB': require('@/assets/fonts/Montserrat-Bold.ttf'),
@@ -71,7 +95,7 @@ const Styling = () => {
     if (!fontsLoaded) {
         return <AppLoading />;
     }
-    const rows: RowItems[] = getRows(numRows);
+    const rows: ClotheModel[][] = getRows(numRows);
     const [selectedIndexes, setSelectedIndexes] = useState<number[]>(Array(rows.length).fill(1));
 
     const handleScroll = (event: any, rowIndex: number) => {
@@ -84,11 +108,34 @@ const Styling = () => {
 
     const handleSnapToItem = (index: number, rowIndex: number) => {
         flatListRefs.current[rowIndex]?.scrollToIndex({ animated: true, index });
-        const newSelectedIndexes = [...selectedIndexes];
-        newSelectedIndexes[rowIndex] = index;
-        setSelectedIndexes(newSelectedIndexes);
+        const selectedItem = rows[rowIndex][index];
+
+        if (selectedItem) {
+            const newSelectedIndexes = [...selectedIndexes];
+            newSelectedIndexes[rowIndex] = index;
+            setSelectedIndexes(newSelectedIndexes);
+
+            const selectedData = { id: selectedItem.id, image_uri: selectedItem.image_url };
+
+            switch (rowIndex) {
+                case 0:
+                    setSelectedUpper(selectedData);
+                    break;
+                case 1:
+                    setSelectedLower(selectedData);
+                    break;
+                case 2:
+                    setSelectedShoes(selectedData);
+                    break;
+                case 3:
+                    setSelectedOuter(selectedData);
+                    break;
+                default:
+                    break;
+            }
+        }
     };
-    const renderRow = (rowItems: RowItems, rowIndex: number) => {
+    const renderRow = (rowItems: ClotheModel[], rowIndex: number) => {
         return (<FlatList
             data={rowItems}
             keyExtractor={(item, index) => `${item.id}-${index}-${rowIndex}`}
@@ -96,45 +143,50 @@ const Styling = () => {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.scrollViewContainer}
             snapToAlignment="start"
+            scrollEnabled={rowItems.length > 0 && isScrollable[rowIndex]}
             snapToInterval={separatorWidth + itemWidth}
             decelerationRate="fast"
             renderItem={({ item, index }) => (
-
                 <View style={[styles.itemContainer, selectedIndex === index && styles.selectedSlot]}>
                     {(() => {
-                        let itemSize = 150
-                        if (numRows === 2) {
-                            if (item.type === 'fullBody') {
-                                itemSize = 300;
-                            } else {
-                                itemSize = 150;
-                            }
-                        }
+                        let itemSize = 150;
                         return (
                             <>
-                                <Image source={item.src} style={[styles.itemImage, { width: itemSize, height: itemSize }]} />
-                                <TouchableOpacity style={styles.pinIcon}>
-                                    <AntDesign name="pushpino" size={24} color="black" />
+                                {item.image_url ? (
+                                    <Image
+                                        source={{ uri: item.image_url }}
+                                        style={[styles.itemImage, { width: itemSize, height: itemSize }]}
+                                    />
+                                ) : null}
+                                <TouchableOpacity style={styles.pinIcon} onPress={() => handlePin(rowIndex)}>
+                                    <AntDesign name={isScrollable[rowIndex] ? "pushpino" : "pushpin"} size={24} color="black" />
                                 </TouchableOpacity>
                             </>
                         );
                     })()}
                 </View>
             )}
+            ListEmptyComponent={() => (
+                <View style={{ paddingLeft: 20 }}>
+                    {(() => {
+                        let itemSize = 150;
+                        return (
+                            <View style={[styles.itemContainer, { width: itemSize, height: itemSize, justifyContent: 'center', alignItems: 'center' }]}>
+                                <TouchableOpacity onPress={() => {/*Will be added*/ }}>
+                                    <AntDesign name="pluscircleo" size={itemSize / 2} color="gray" />
+                                </TouchableOpacity>
+                            </View>
+                        );
+                    })()}
+                </View>
+            )}
             ItemSeparatorComponent={() => <View style={{ width: separatorWidth }} />}
-
-            onEndReached={() => {
-                rowItems.push(...rowItems.map(item => ({ ...item, id: item.id + Math.random() }))); // Generate unique IDs for duplicated items
-            }}
-
-            onEndReachedThreshold={0.5}
             onScroll={(event) => handleScroll(event, rowIndex)}
             onMomentumScrollEnd={() => handleSnapToItem(selectedIndexes[rowIndex], rowIndex)}
-
             ref={(ref) => (flatListRefs.current[rowIndex] = ref)}
             initialScrollIndex={0}
             getItemLayout={(data, index) => (
-                { length: screenWidth, offset: (separatorWidth + itemWidth) * index, index } // Change this line to use screen width
+                { length: screenWidth, offset: (separatorWidth + itemWidth) * index, index }
             )}
         />);
     }
@@ -157,7 +209,15 @@ const Styling = () => {
                 );
             case 'Moodboards':
                 return (
-                    <Text>Moodboards</Text>
+                    <ImageCanvas />
+                );
+            case 'Moodboardswith':
+                return (
+                    <ImageCanvas initialUpperBody={selectedUpper}
+                        initialLowerBody={selectedLower}
+                        initialShoes={selectedShoes}
+                        initialouterwear={selectedOuter}
+                        initnumber={numRows} />
                 );
             default:
                 return null;
@@ -169,15 +229,8 @@ const Styling = () => {
                 return (
                     <View>
                         <View style={styles.rowSelector}>
-                            <TouchableOpacity onPress={() => setNumRows(2)}>
-                                <LayoutTwoColumnsIcon
-                                    width={24}
-                                    height={24}
-                                    stroke={numRows === 2 ? '#91DDCF' : 'black'}
-                                    fill={numRows === 2 ? '#91DDCF' : 'none'}
-                                />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setNumRows(3)}>
+
+                            <TouchableOpacity onPress={() => { setNumRows(3); setIsScrollable(Array(isScrollable.length).fill(true)); setSelectedLower(null); setSelectedOuter(null); setSelectedShoes(null); setSelectedUpper(null) }}>
                                 <LayoutThreeColumnsIcon
                                     width={24}
                                     height={24}
@@ -185,7 +238,7 @@ const Styling = () => {
                                     fill={numRows === 3 ? '#91DDCF' : 'none'}
                                 />
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setNumRows(4)}>
+                            <TouchableOpacity onPress={() => { setNumRows(4); setIsScrollable(Array(isScrollable.length).fill(true)); setSelectedLower(null); setSelectedOuter(null); setSelectedShoes(null); setSelectedUpper(null) }}>
                                 <LayoutFourColumnsIcon
                                     width={24}
                                     height={24}
@@ -194,7 +247,7 @@ const Styling = () => {
                                 />
                             </TouchableOpacity>
                         </View>
-                        
+
                     </View>
                 );
 
@@ -207,10 +260,7 @@ const Styling = () => {
             case 'Styling':
                 return (
                     <View style={styles.er}>
-                        <TouchableOpacity style={styles.leftButton}>
-                            <Feather name="sliders" size={20} color="white"style={styles.rotatedIcon} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.rightButton}>
+                        <TouchableOpacity style={styles.rightButton} onPress={() => { setSelectedInfo('Moodboardswith') }}>
                             <AntDesign name="arrowright" size={20} color="black" />
                         </TouchableOpacity>
                     </View>
@@ -233,7 +283,7 @@ const Styling = () => {
                     {selectedInfo === 'Dress Me' && <View style={styles.underline}></View>}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.statItem} onPress={() => setSelectedInfo('Moodboards')}>
-                    <Text style={styles.statLabel}>Moodboards</Text>
+                    <Text style={styles.statLabel}>Canvas</Text>
                     {selectedInfo === 'Moodboards' && <View style={styles.underline}></View>}
                 </TouchableOpacity>
             </View>
@@ -272,8 +322,10 @@ const styles = StyleSheet.create({
         height: 2,
         backgroundColor: '#91DDCF',
         width: '100%',
+        marginTop: 5,
     },
     container: {
+        paddingTop: 50,
         flex: 1,
         backgroundColor: 'white',
     },
@@ -327,35 +379,28 @@ const styles = StyleSheet.create({
         padding: 10,
         backgroundColor: '#fff',
     },
-    
+
     separator: {
         height: 1,
         backgroundColor: '#E0E0E0',
     },
     er: {
+        padding: 10,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 10,
         backgroundColor: 'white',
     },
-    leftButton: {
-        width: 40,
-        height: 40,
-        left:10,
-        borderRadius: 25,
-        backgroundColor: 'black',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
+
     rightButton: {
         width: 40,
         height: 40,
-        right:10,
         borderRadius: 25,
-        backgroundColor: '#DFFF00', // Neon green color
+        marginLeft: 'auto',
+        backgroundColor: '#DFFF00',
         justifyContent: 'center',
         alignItems: 'center',
+        zIndex: 1000,
     },
 });
 
